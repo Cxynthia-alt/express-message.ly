@@ -24,9 +24,8 @@ class User {
         last_name,
         phone,
         join_at)
-      VALUES ($1, $2, $3, $4, 5$, current_timestamp)
-      RETURNING username
-      )`, [username, password, first_name, last_name, phone]
+      VALUES ($1, $2, $3, $4, $5, current_timestamp)
+      RETURNING username`, [username, password, first_name, last_name, phone]
     )
     return result.rows[0];
 
