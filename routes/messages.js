@@ -1,3 +1,11 @@
+const express = require("express")
+const ExpressError = require("../expressError")
+const router = express.Router()
+const db = require("../db")
+const Message = require("../models/message")
+const { ensureLoggedIn, ensureCorrectUser, authenticateJWT } = require("../middleware/auth")
+
+
 /** GET /:id - get detail of message.
  *
  * => {message: {id,
@@ -11,6 +19,16 @@
  *
  **/
 
+router.get(':id', async (req, res, next) => {
+  try {
+    const id = req.params.id
+    const result = await Message.get(id)
+    return res.json({ message: result })
+  } catch (err) {
+    return next(err)
+  }
+})
+
 
 /** POST / - post message.
  *
@@ -19,7 +37,15 @@
  *
  **/
 
-
+router.post('/', ensureLoggedIn, async (req, res, next) => {
+  try {
+    const { to_username, body } = req.body
+    const result = await Message.create({ username, to_username, body })
+    return res.json({ message: result })
+  } catch (err) {
+    return next(err)
+  }
+})
 /** POST/:id/read - mark message as read:
  *
  *  => {message: {id, read_at}}
@@ -28,4 +54,14 @@
  *
  **/
 
-// module.exports = router
+router.post('/:id/read', ensureCorrectUser, async (req, res, next) => {
+  try {
+    const id = req.body.id
+    const result = await Message.markRead(id)
+    return res.json({ message: result })
+  } catch (err) {
+    return next(err)
+  }
+})
+
+module.exports = router

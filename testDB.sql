@@ -38,3 +38,10 @@ CREATE TABLE messages (
 -- FROM messages AS m
 -- JOIN users as u ON m.from_username = u.username
 -- WHERE m.from_username = 'Elie';
+
+SELECT m.id, m.body, m.read_at, m.sent_at, u.first_name, u.last_name, u.phone, u.username
+FROM messages AS m
+JOIN users AS u ON m.to_username = u.username
+WHERE m.from_username = 'test1';
+
+SELECT u.username, u.first_name, u.last_name, u.phone, u.join_at,u.last_login_at FROM users AS u WHERE username = $1;

@@ -1,11 +1,9 @@
 /** User class for message.ly */
 
 const db = require("../db")
-const jwt = require("jsonwebtoken")
 const bcrypt = require("bcrypt")
 const ExpressError = require("../expressError")
-const { ensureCorrectUser } = require("../middleware/auth")
-const { SECRET_KEY } = require("../config")
+const { BCRYPT_WORK_FACTOR, SECRET_KEY } = require("../config")
 
 /** User of the site. */
 
@@ -16,6 +14,7 @@ class User {
    */
 
   static async register({ username, password, first_name, last_name, phone }) {
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_WORK_FACTOR)
     const result = await db.query(
       `INSERT INTO users (
         username,
@@ -23,9 +22,10 @@ class User {
         first_name,
         last_name,
         phone,
-        join_at)
-      VALUES ($1, $2, $3, $4, $5, current_timestamp)
-      RETURNING username`, [username, password, first_name, last_name, phone]
+        join_at,
+        last_login_at)
+      VALUES ($1, $2, $3, $4, $5, current_timestamp, current_timestamp)
+      RETURNING username, password, first_name, last_name, phone`, [username, hashedPassword, first_name, last_name, phone]
     )
     return result.rows[0];
 
@@ -38,26 +38,29 @@ class User {
       `SELECT password FROM users WHERE username = $1`, [username]
     )
     const hashedPassword = result.rows[0].password
-    return await bcrypt.compare(password, hashedPassword)
+    const isValid = await bcrypt.compare(password, hashedPassword)
+    return isValid
   }
 
   /** Update last_login_at for user */
 
   static async updateLoginTimestamp(username) {
-    await db.query(`UPDATE users SET last_login_at = current_timestamp
-    WHERE username = $1`, [username])
+    const result = await db.query(`
+    UPDATE users
+    SET last_login_at = current_timestamp
+    WHERE username = $1
+    RETURNING username`, [username])
+    if (result.rows.length === 0) {
+      throw new ExpressError(`User ${username} not found`, 404)
+    }
   }
 
   /** All: basic info on all users:
    * [{username, first_name, last_name, phone}, ...] */
 
   static async all() {
-    const result = await db.query(`SELECT * FROM users`)
-    const basicInfo = result.rows.map(r => {
-      const { password, join_at, last_login_at, ...basic } = r
-      return basic
-    })
-    return basicInfo
+    const result = await db.query(`SELECT username, first_name, last_name, phone FROM users`)
+    return result.rows
   }
 
   /** Get: get user by username
@@ -70,11 +73,14 @@ class User {
    *          last_login_at } */
 
   static async get(username) {
-    const result = await db.query(`SELECT * FROM users WHERE username = $1`, [username])
-    return result.rows.map(r => {
-      const { password, ...basic } = r
-      return basic
-    })
+    const result = await db.query(`
+    SELECT u.username, u.first_name, u.last_name, u.phone, u.join_at,u.last_login_at
+    FROM users AS u
+    WHERE username = $1`, [username])
+    if (!result.rows[0]) {
+      throw new ExpressError(`No such user: ${username}`, 404);
+    }
+    return result.rows[0]
   }
 
   /** Return messages from this user.
@@ -86,11 +92,16 @@ class User {
    */
 
   static async messagesFrom(username) {
-    const result = await db.query(`SELECT m.id, m.to_username, m.body, m.sent_at, m.read_at
-    FROM messages AS m
-    JOIN users as u ON m.from_username = u.username
-    WHERE m.from_username = $1`, [username])
-    return result.rows
+    const senderInfo = await db.query(`SELECT id, body, read_at, sent_at
+    FROM messages
+    WHERE from_username = $1`, [username])
+    const msgID = senderInfo.rows[0].id
+    const recipient = await db.query(`SELECT username, first_name, last_name, phone
+    FROM users
+    JOIN messages ON users.username = messages.to_username
+    WHERE messages.id = $1`, [msgID])
+    senderInfo.rows[0].to_user = recipient.rows[0]
+    return senderInfo.rows
   }
 
   /** Return messages to this user.
@@ -102,11 +113,16 @@ class User {
    */
 
   static async messagesTo(username) {
-    const result = await db.query(`SELECT m.id, m.from_username, m.body, m.sent_at, m.read_at
-    FROM messages AS m
-    JOIN users as u ON m.to_username = u.username
-    WHERE m.to_username = $1`, [username])
-    return result.rows
+    const receipientInfo = await db.query(`SELECT id, body, read_at, sent_at
+    FROM messages
+    WHERE to_username = $1`, [username])
+    const msgID = receipientInfo.rows[0].id
+    const sender = await db.query(`SELECT username, first_name, last_name, phone
+    FROM users
+    JOIN messages ON users.username = messages.from_username
+    WHERE messages.id = $1`, [msgID])
+    receipientInfo.rows[0].from_user = sender.rows[0]
+    return receipientInfo.rows
   }
 }
 

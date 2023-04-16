@@ -55,6 +55,7 @@ router.post('/login', async (req, res, next) => {
     FROM users
     WHERE username =$1`, [username])
     const user = result.rows[0]
+    const hashedPassword = result.rows[0].password
     if (user) {
       if (await bcrypt.compare(password, hashedPassword)) {
         const token = jwt.sign({ username }, SECRET_KEY)
