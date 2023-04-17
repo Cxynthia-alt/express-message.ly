@@ -19,7 +19,7 @@ const { ensureLoggedIn, ensureCorrectUser, authenticateJWT } = require("../middl
  *
  **/
 
-router.get(':id', async (req, res, next) => {
+router.get(':id', ensureLoggedIn, async (req, res, next) => {
   try {
     const id = req.params.id
     const result = await Message.get(id)

@@ -21,49 +21,38 @@ const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
 const { BCRYPT_WORK_FACTOR, SECRET_KEY } = require("../config")
 const { ensureLoggedIn } = require("../middleware/auth")
+const User = require("../models/user")
 
-
-router.post('/register', async (req, res, next) => {
-  try {
-    const { username, password, first_name, last_name, phone } = req.body
-    if (!username || !password) {
-      throw new ExpressError('Username and password required', 404)
-    }
-    const hashedPassword = await bcrypt.hash(password, BCRYPT_WORK_FACTOR)
-    const result = await db.query(`
-    INSERT INTO users (username, password, first_name, last_name, phone, join_at)
-    VALUES($1, $2, $3, $4, $5, current_timestamp)
-    RETURNING username, first_name, last_name, join_at`, [username, hashedPassword, first_name, last_name, phone])
-    return res.json(result.rows[0])
-  } catch (err) {
-    if (err.code === '23505') {
-      return next(new ExpressError("Username taken. Please pick another", 400))
-    }
-    return next(err)
-  }
-})
 
 
 router.post('/login', async (req, res, next) => {
   try {
-    const { username, password } = req.body
+    let { username, password } = req.body
     if (!username || !password) {
       throw new ExpressError('Username and password required', 404)
     }
-    const result = await db.query(`
-    SELECT username, password
-    FROM users
-    WHERE username =$1`, [username])
-    const user = result.rows[0]
-    const hashedPassword = result.rows[0].password
-    if (user) {
-      if (await bcrypt.compare(password, hashedPassword)) {
-        const token = jwt.sign({ username }, SECRET_KEY)
-        return res.json({ message: 'Logged in!', token: token })
-      }
+    if (await User.authenticate(username, password)) {
+      let token = jwt.sign({ username }, SECRET_KEY)
+      User.updateLoginTimestamp(username)
+      return res.json({ token })
+    } else {
+      throw new ExpressError('Username/password invalid', 404)
     }
-    throw new ExpressError('Username/password invalid', 404)
   } catch (err) {
+    return next(err)
+  }
+})
+
+router.post('/register', async (req, res, next) => {
+  try {
+    let { username } = await User.register(req.body)
+    let token = jwt.sign({ username }, SECRET_KEY)
+    User.updateLoginTimestamp(username)
+    return res.json({ token })
+  } catch (err) {
+    if (err.code === '23505') {
+      return next(new ExpressError("Username taken. Please pick another", 400))
+    }
     return next(err)
   }
 })
