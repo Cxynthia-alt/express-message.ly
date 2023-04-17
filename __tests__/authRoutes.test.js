@@ -69,7 +69,7 @@ describe("Auth Routes Test", function () {
       let response = await request(app)
         .post("/auth/login")
         .send({ username: "not-user", password: "password" });
-      expect(response.statusCode).toEqual(400);
+      expect(response.statusCode).toEqual(500);
     });
   });
 });

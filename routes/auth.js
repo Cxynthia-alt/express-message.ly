@@ -36,7 +36,7 @@ router.post('/login', async (req, res, next) => {
       User.updateLoginTimestamp(username)
       return res.json({ token })
     } else {
-      throw new ExpressError('Username/password invalid', 404)
+      throw new ExpressError('Username/password invalid', 400)
     }
   } catch (err) {
     return next(err)
@@ -56,17 +56,6 @@ router.post('/register', async (req, res, next) => {
     return next(err)
   }
 })
-
-//make sure the loggedin user can see the info
-// router.get('/topsecret', ensureLoggedIn, async (req, res, next) => {
-//   try {
-//     const token = req.body._token
-//     const data = jwt.verify(token, SECRET_KEY)
-//     return res.json({ message: "Signed In." })
-//   } catch (err) {
-//     return next(new ExpressError("Please log in first", 401))
-//   }
-// })
 
 
 module.exports = router

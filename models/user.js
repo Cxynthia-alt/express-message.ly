@@ -35,7 +35,7 @@ class User {
 
   static async authenticate(username, password) {
     const result = await db.query(
-      `SELECT password FROM users WHERE username = $1`, [username]
+      `SELECT * FROM users WHERE username = $1`, [username]
     )
     let user = result.rows[0]
     let isValid = await bcrypt.compare(password, user.password)
